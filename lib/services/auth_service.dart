@@ -236,6 +236,17 @@ class AuthService {
         };
       }
 
+      // Validate age if provided
+      if (userData != null && userData.containsKey('age')) {
+        int? age = userData['age'];
+        if (age == null || age < 0 || age > 120) {
+          return {
+            'success': false,
+            'message': 'Please enter a valid age between 0 and 120',
+          };
+        }
+      }
+
       // Create user with reCAPTCHA verification
       await _auth.setSettings(appVerificationDisabledForTesting: false);
       UserCredential userCredential = await _auth

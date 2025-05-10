@@ -13,10 +13,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _ageController = TextEditingController();
   String _selectedRole = 'athlete';
+  String _selectedGender = 'Male';
   bool _isLoading = false;
 
   final List<String> _roles = ['athlete', 'coach'];
+  final List<String> _genders = ['Male', 'Female'];
 
   void _register() async {
     if (!_formKey.currentState!.validate()) return;
@@ -28,6 +31,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final userData = {
         'name': _nameController.text.trim(),
         'role': _selectedRole,
+        'gender': _selectedGender,
+        'age': int.parse(_ageController.text.trim()),
       };
 
       var result = await AuthService().register(
@@ -145,9 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _roles.map((role) {
                       return DropdownMenuItem(
                         value: role,
-                        child: Text(
-                          role[0].toUpperCase() + role.substring(1),
-                        ), // Capitalize first letter
+                        child: Text(role[0].toUpperCase() + role.substring(1)),
                       );
                     }).toList(),
                 onChanged: (value) {
@@ -156,6 +159,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _selectedRole = value;
                     });
                   }
+                },
+              ),
+              SizedBox(height: 16),
+
+              // Gender Dropdown
+              DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: 'Gender',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
+                value: _selectedGender,
+                items:
+                    _genders.map((gender) {
+                      return DropdownMenuItem(
+                        value: gender,
+                        child: Text(gender),
+                      );
+                    }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedGender = value;
+                    });
+                  }
+                },
+              ),
+              SizedBox(height: 16),
+
+              // Age Field
+              TextFormField(
+                controller: _ageController,
+                decoration: InputDecoration(
+                  labelText: 'Age',
+                  prefixIcon: Icon(Icons.calendar_today),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your age';
+                  }
+                  try {
+                    int age = int.parse(value);
+                    if (age < 0 || age > 120) {
+                      return 'Please enter a valid age';
+                    }
+                  } catch (e) {
+                    return 'Please enter a valid number';
+                  }
+                  return null;
                 },
               ),
               SizedBox(height: 24),
@@ -184,6 +238,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _ageController.dispose();
     super.dispose();
   }
 }

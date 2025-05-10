@@ -106,6 +106,18 @@ class AthleteDetailScreen extends StatelessWidget {
                             label: 'User ID',
                             value: athleteData['id'] ?? 'N/A',
                           ),
+                          Divider(),
+                          _buildInfoRow(
+                            icon: Icons.person_outline,
+                            label: 'Gender',
+                            value: athleteData['gender'] ?? 'N/A',
+                          ),
+                          Divider(),
+                          _buildInfoRow(
+                            icon: Icons.calendar_today,
+                            label: 'Age',
+                            value: athleteData['age']?.toString() ?? 'N/A',
+                          ),
                         ],
                       ),
                     ),

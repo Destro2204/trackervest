@@ -12,6 +12,8 @@ class FirebaseService {
         'id': user.uid,
         'role': role,
         'name': user.displayName ?? 'User',
+        'gender': 'Male', // Default value
+        'age': 0, // Default value
         'groupId': 'default',
         'createdAt': FieldValue.serverTimestamp(),
       };
