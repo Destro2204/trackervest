@@ -28,8 +28,11 @@ class FirebaseService {
 
       // Add athlete-specific fields if role is athlete
       if (role == 'athlete') {
-        userDoc['heartrate'] = null;
+        userDoc['hr'] = null;
         userDoc['temp'] = null;
+        userDoc['spo2'] = null;
+        userDoc['activity'] = 'Weightlifting';
+        userDoc['fatigue_score'] = 5;
       }
 
       // Merge with any additional user data
@@ -48,7 +51,9 @@ class FirebaseService {
       print('Auto-generated user ID: $userId');
       print('Role: $role');
       if (role == 'athlete') {
-        print('Athlete-specific fields initialized: heartrate=null, temp=null');
+        print(
+          'Athlete-specific fields initialized: hr=null, temp=null, spo2=null',
+        );
       }
       userDoc.forEach((key, value) {
         print('   - $key: $value');
@@ -67,6 +72,14 @@ class FirebaseService {
           'role': 'athlete',
           'name': 'Default User',
           'id': 'DefaultUserID',
+          'gender': 'Male',
+          'age': 25,
+          'hr': null,
+          'temp': null,
+          'spo2': null,
+          'activity': 'Weightlifting',
+          'fatigue_score': 5,
+          'createdAt': FieldValue.serverTimestamp(),
         };
       }
 
@@ -74,33 +87,90 @@ class FirebaseService {
       DocumentSnapshot userDoc =
           await _firestore.collection('users').doc(currentUser.uid).get();
 
-      // If the document exists, return the data
+      // If the document exists, ensure all required fields are present
       if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        print('✅ User data retrieved from Firestore');
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+
+        // Check and add any missing required fields
+        final defaultValues = {
+          'role': 'athlete',
+          'name': currentUser.displayName ?? 'User',
+          'id': '${currentUser.displayName ?? 'User'}ID',
+          'gender': 'Male',
+          'age': 25,
+          'hr': null,
+          'temp': null,
+          'spo2': null,
+          'activity': 'Weightlifting',
+          'fatigue_score': 5,
+          'email': currentUser.email,
+          'uid': currentUser.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        bool needsUpdate = false;
+        defaultValues.forEach((key, value) {
+          if (!userData.containsKey(key) || userData[key] == null) {
+            userData[key] = value;
+            needsUpdate = true;
+          }
+        });
+
+        // If any fields were missing, update the document in Firestore
+        if (needsUpdate) {
+          print('Updating user document with missing fields');
+          await _firestore
+              .collection('users')
+              .doc(currentUser.uid)
+              .set(userData, SetOptions(merge: true));
+        }
+
+        print('✅ User data retrieved/updated in Firestore:');
+        userData.forEach((key, value) => print('  $key: $value'));
         return userData;
       }
 
-      // Generate name and ID for fallback data
-      final String userName =
-          currentUser.displayName ?? 'User ${currentUser.uid.substring(0, 4)}';
-      final String userId = "${userName.replaceAll(' ', '')}ID";
-
-      // Fallback data if not found
-      return {
+      // If document doesn't exist, create a new one with all required fields
+      final newUserData = {
         'role': 'athlete',
+        'name': currentUser.displayName ?? 'User',
+        'id': '${currentUser.displayName ?? 'User'}ID',
+        'gender': 'Male',
+        'age': 25,
+        'hr': null,
+        'temp': null,
+        'spo2': null,
+        'activity': 'Weightlifting',
+        'fatigue_score': 5,
         'email': currentUser.email,
         'uid': currentUser.uid,
-        'name': userName,
-        'id': userId,
+        'createdAt': FieldValue.serverTimestamp(),
       };
+
+      print('Creating new user document with all required fields');
+      await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .set(newUserData);
+
+      print('✅ New user data created in Firestore:');
+      newUserData.forEach((key, value) => print('  $key: $value'));
+      return newUserData;
     } catch (e) {
       print('❌ Error getting user data: $e');
-      // Return default data in case of error
+      // Return complete default data in case of error
       return {
         'role': 'athlete',
         'name': 'Default User',
         'id': 'DefaultUserID',
+        'gender': 'Male',
+        'age': 25,
+        'hr': null,
+        'temp': null,
+        'spo2': null,
+        'activity': 'Weightlifting',
+        'fatigue_score': 5,
+        'createdAt': FieldValue.serverTimestamp(),
         'error': e.toString(),
       };
     }
@@ -152,44 +222,65 @@ class FirebaseService {
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      print('Debug: Attempting login for $email');
-
-      // First authenticate with Firebase Auth
-      final UserCredential userCredential = await _auth
-          .signInWithEmailAndPassword(email: email, password: password);
+      // Authenticate user
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
       if (userCredential.user != null) {
-        print('\n🔐 Debug: Authentication Successful');
-        print('   - Email: ${userCredential.user?.email}');
-        print('   - UID: ${userCredential.user?.uid}');
+        // Get complete user data from Firestore
+        final userDoc =
+            await _firestore
+                .collection('users')
+                .doc(userCredential.user!.uid)
+                .get();
 
-        print('\n🔄 Debug: Fetching Firestore Data...');
-        final userData = await _firebaseService.getUserData();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          return {
+            'success': true,
+            'user': userCredential.user,
+            'userData': userData,
+            'message': 'Login successful',
+          };
+        }
 
-        print('\n✅ Debug: Login Complete');
-        print('Firebase Auth User:');
-        print('   - Email: ${userCredential.user?.email}');
-        print('   - UID: ${userCredential.user?.uid}');
-        print('\nFirestore User Data:');
-        userData.forEach((key, value) {
-          print('   - $key: $value');
-        });
+        // If user document doesn't exist, create it with default values
+        final defaultUserData = {
+          'uid': userCredential.user!.uid,
+          'email': userCredential.user!.email,
+          'role': 'athlete',
+          'name': userCredential.user!.displayName ?? 'User',
+          'gender': 'Male',
+          'age': 25,
+          'hr': null,
+          'temp': null,
+          'spo2': null,
+          'activity': 'Weightlifting',
+          'fatigue_score': 5,
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set(defaultUserData);
 
         return {
           'success': true,
           'user': userCredential.user,
-          'userData': userData,
+          'userData': defaultUserData,
           'message': 'Login successful',
         };
       }
 
-      print('Debug: No user returned from authentication');
       return {'success': false, 'message': 'Authentication failed'};
     } on FirebaseAuthException catch (e) {
-      print('Debug: FirebaseAuthException: ${e.code} - ${e.message}');
       String message;
       switch (e.code) {
         case 'user-not-found':
@@ -209,7 +300,7 @@ class AuthService {
       }
       return {'success': false, 'message': message};
     } catch (e) {
-      print('Debug: Unexpected error during login: $e');
+      print('Error during login: $e');
       return {'success': false, 'message': 'An unexpected error occurred'};
     }
   }

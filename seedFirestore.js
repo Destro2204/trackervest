@@ -45,13 +45,13 @@ async function seedData() {
     if (user.role === "athlete") {
       const statsRef = db.collection("users").doc(user.id).collection("stats");
       await statsRef.add({
-        heartRate: 75 + Math.floor(Math.random() * 10),
+        hr: 75 + Math.floor(Math.random() * 10),
         temperature: 36 + Math.random(),
         time: admin.firestore.Timestamp.now()
       });
 
       await statsRef.add({
-        heartRate: 80 + Math.floor(Math.random() * 5),
+        hr: 80 + Math.floor(Math.random() * 5),
         temperature: 36.5 + Math.random(),
         time: admin.firestore.Timestamp.now()
       });

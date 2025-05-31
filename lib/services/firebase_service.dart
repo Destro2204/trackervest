@@ -5,25 +5,40 @@ class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> createUserDocument(User user, String role) async {
+  Future<void> createUserDocument(
+    User user,
+    String role, {
+    Map<String, dynamic>? userData,
+  }) async {
     try {
-      final userData = {
+      // Base user data with default values for all required fields
+      final baseUserData = {
         'email': user.email,
-        'id': user.uid,
+        'uid': user.uid,
         'role': role,
         'name': user.displayName ?? 'User',
-        'gender': 'Male', // Default value
-        'age': 0, // Default value
-        'groupId': 'default',
+        'gender': 'male', // Default value
+        'age': 25, // Default value
+        'hr': null,
+        'temp': null,
+        'spo2': null,
+        'activity': 'Weightlifting', // Default activity
+        'fatigue_score': 5, // Default fatigue score (1-10 scale)
         'createdAt': FieldValue.serverTimestamp(),
       };
+
+      // If additional userData is provided, merge it with base data
+      final finalUserData =
+          userData != null ? {...baseUserData, ...userData} : baseUserData;
 
       await _firestore
           .collection('users')
           .doc(user.uid)
-          .set(userData, SetOptions(merge: true));
+          .set(finalUserData, SetOptions(merge: true));
 
       print('✅ Debug: User document created successfully');
+      print('Debug: Created user data:');
+      finalUserData.forEach((key, value) => print('  $key: $value'));
     } catch (e) {
       print('❌ Debug: Error creating user document: $e');
       rethrow;
@@ -33,46 +48,17 @@ class FirebaseService {
   Future<Map<String, dynamic>?> getUserData() async {
     try {
       final User? currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        print('🚫 Debug: No authenticated user found');
-        return null;
-      }
+      if (currentUser == null) return null;
 
-      // Try to get user document by email first
-      print(
-        '🔍 Debug: Searching for user document with email: ${currentUser.email}',
-      );
-      final QuerySnapshot queryResult =
-          await _firestore
-              .collection('users')
-              .where('email', isEqualTo: currentUser.email)
-              .limit(1)
-              .get();
-
-      if (queryResult.docs.isNotEmpty) {
-        final userData = queryResult.docs.first.data() as Map<String, dynamic>;
-        print('✅ Debug: Found user data by email:');
-        userData.forEach((key, value) => print('   - $key: $value'));
-        return userData;
-      }
-
-      print(
-        '⚠️ Debug: No user document found with email, trying ID: ${currentUser.uid}',
-      );
       final DocumentSnapshot docSnapshot =
           await _firestore.collection('users').doc(currentUser.uid).get();
 
       if (docSnapshot.exists) {
-        final userData = docSnapshot.data() as Map<String, dynamic>;
-        print('✅ Debug: Found user data by UID:');
-        userData.forEach((key, value) => print('   - $key: $value'));
-        return userData;
+        return docSnapshot.data() as Map<String, dynamic>;
       }
 
-      print('❌ Debug: No user document found in Firestore');
       return null;
     } catch (e) {
-      print('❌ Debug: Error in getUserData: $e');
       return null;
     }
   }
@@ -80,5 +66,27 @@ class FirebaseService {
   Future<String> getUserRole() async {
     final userData = await getUserData();
     return userData?['role'] ?? 'athlete';
+  }
+
+  // Stream all athletes data in real-time
+  Stream<List<Map<String, dynamic>>> streamAllAthletes() {
+    return _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'athlete')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => doc.data() as Map<String, dynamic>)
+              .toList();
+        });
+  }
+
+  // Stream a specific athlete's data in real-time
+  Stream<Map<String, dynamic>?> streamAthleteData(String uid) {
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((snapshot) => snapshot.data() as Map<String, dynamic>?);
   }
 }
